@@ -8,6 +8,11 @@
 
 int DhcpClass::beginWithDHCP(uint8_t *mac, unsigned long timeout, unsigned long responseTimeout)
 {
+    return beginWithDHCP(mac, NULL, timeout, responseTimeout);
+}
+
+int DhcpClass::beginWithDHCP(uint8_t *mac, const char *hostname, unsigned long timeout, unsigned long responseTimeout)
+{
 	_dhcpLeaseTime=0;
 	_dhcpT1=0;
 	_dhcpT2=0;
@@ -17,6 +22,20 @@ int DhcpClass::beginWithDHCP(uint8_t *mac, unsigned long timeout, unsigned long 
 	// zero out _dhcpMacAddr
 	memset(_dhcpMacAddr, 0, 6);
 	reset_DHCP_lease();
+
+	if (NULL == hostname)
+    {
+      strcpy(_dhcpHostname, HOST_NAME);
+      int offset = strlen(HOST_NAME);
+      printByte((char*)&(_dhcpHostname[offset + 0]), mac[3]);
+      printByte((char*)&(_dhcpHostname[offset + 2]), mac[4]);
+      printByte((char*)&(_dhcpHostname[offset + 4]), mac[5]);
+      _dhcpHostname[offset + 6] = 0;
+    }
+    else
+    {
+      strlcpy(_dhcpHostname, hostname, MAX_HOST_NAME_LENGTH + 1);
+    }
 
 	memcpy((void*)_dhcpMacAddr, (void*)mac, 6);
 	_dhcp_state = STATE_DHCP_START;
@@ -118,8 +137,8 @@ void DhcpClass::presend_DHCP()
 
 void DhcpClass::send_DHCP_MESSAGE(uint8_t messageType, uint16_t secondsElapsed)
 {
-	uint8_t buffer[32];
-	memset(buffer, 0, 32);
+	uint8_t buffer[40];
+	memset(buffer, 0, 40);
 	IPAddress dest_addr(255, 255, 255, 255); // Broadcast address
 
 	if (_dhcpUdpSocket.beginPacket(dest_addr, DHCP_SERVER_PORT) == -1) {
@@ -187,16 +206,13 @@ void DhcpClass::send_DHCP_MESSAGE(uint8_t messageType, uint16_t secondsElapsed)
 	memcpy(buffer + 10, _dhcpMacAddr, 6);
 
 	// OPT - host name
+	int hostNameLength = strlen(_dhcpHostname);
 	buffer[16] = hostName;
-	buffer[17] = strlen(HOST_NAME) + 6; // length of hostname + last 3 bytes of mac address
-	strcpy((char*)&(buffer[18]), HOST_NAME);
-
-	printByte((char*)&(buffer[24]), _dhcpMacAddr[3]);
-	printByte((char*)&(buffer[26]), _dhcpMacAddr[4]);
-	printByte((char*)&(buffer[28]), _dhcpMacAddr[5]);
+	buffer[17] = hostNameLength + 6; // length of hostname + last 3 bytes of mac address
+	strcpy((char*)&(buffer[18]), _dhcpHostname);
 
 	//put data in W5100 transmit buffer
-	_dhcpUdpSocket.write(buffer, 30);
+	_dhcpUdpSocket.write(buffer, hostNameLength + 24);
 
 	if (messageType == DHCP_REQUEST) {
 		buffer[0] = dhcpRequestedIPaddr;
@@ -430,4 +446,9 @@ void DhcpClass::printByte(char * buf, uint8_t n )
 		char c = m - 16 * n;
 		*str-- = c < 10 ? c + '0' : c + 'A' - 10;
 	} while(n);
+}
+
+const char* DhcpClass::getHostname() const
+{
+    return _dhcpHostname;
 }

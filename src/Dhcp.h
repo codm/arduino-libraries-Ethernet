@@ -43,6 +43,7 @@
 #define MAX_DHCP_OPT		16
 
 #define HOST_NAME "WIZnet"
+#define MAX_HOST_NAME_LENGTH 16
 #define DEFAULT_LEASE	(900) //default lease time in seconds
 
 #define DHCP_CHECK_NONE         (0)
